@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roshar Sphere Tracker</title>
+    <style>
+        :root {
+            --bg-color: #121216;
+            --panel-bg: #1e1e24;
+            --text-main: #e0e0e0;
+            --text-muted: #888;
+            --accent: #4a90e2;
+            --accent-hover: #357abd;
+            --accent-alt: #27ae60;
+            --accent-alt-hover: #2ecc71;
+            --danger: #e24a4a;
+            --infused-glow: 0 0 8px 2px rgba(255, 255, 255, 0.4);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1, h2, h3 { margin-top: 0; }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--panel-bg);
+            padding-bottom: 10px;
+        }
+
+        .controls-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        button:hover { background-color: var(--accent-hover); }
+        button.danger { background-color: var(--danger); }
+        button.danger:hover { background-color: #c0392b; }
+        button.success { background-color: var(--accent-alt); }
+        button.success:hover { background-color: var(--accent-alt-hover); }
+        button.small { padding: 4px 8px; font-size: 0.8rem; }
+        
+        input[type="text"], input[type="number"], select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            background-color: #2a2a32;
+            color: white;
+        }
+
+        /* Time Controls */
+        .time-controls label {
+            display: block;
+            margin-bottom: 5px;
+            cursor: pointer;
+        }
+        .time-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        /* Player Cards */
+        .players-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+            gap: 20px;
+        }
+
+        .player-card {
+            background-color: var(--panel-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .player-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .player-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            border: none;
+            background: transparent;
+            border-bottom: 1px solid var(--text-muted);
+            width: 50%;
+        }
+
+        .total-wealth {
+            font-size: 1.1rem;
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        /* Sphere Forms */
+        .add-sphere-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+            background-color: #2a2a32;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .add-sphere-form input, .add-sphere-form select, .add-sphere-form button {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Inventory Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 8px 4px;
+            border-bottom: 1px solid #333;
+            vertical-align: middle;
+        }
+        th { color: var(--text-muted); }
+        
+        .gem-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .infused { box-shadow: var(--infused-glow); }
+        .dun { opacity: 0.5; }
+        
+        .qty-controls, .toggle-controls {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Stormlight Sphere Tracker</h1>
+        <p>Track your infused spheres and their total value in Diamond Marks</p>
+    </div>
+
+    <div class="controls-container">
+        <!-- Global Controls -->
+        <div class="panel">
+            <h2>Game Management</h2>
+            <div class="btn-group">
+                <button onclick="addPlayer()">+ Add New Player</button>
+                <button class="success" onclick="exportData()">⬇ Export JSON</button>
+                <button class="success" onclick="document.getElementById('import-file').click()">⬆ Import JSON</button>
+                <input type="file" id="import-file" style="display: none;" accept=".json" onchange="importData(event)">
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px;">
+                Export saves the current state to a file. Import overwrites the current session.
+            </p>
+        </div>
+
+        <!-- Time Controls -->
+        <div class="panel time-controls">
+            <h2>Advance Time</h2>
+            <div style="max-height: 80px; overflow-y: auto; margin-bottom: 10px;" id="time-checkboxes">
+                <!-- Checkboxes populated via JS -->
+            </div>
+            <div class="time-actions">
+                <input type="number" id="daysToAdvance" value="1" min="1" style="width: 70px;">
+                <span>Days</span>
+                <button onclick="advanceTime()">Advance Time</button>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 5px;">
+                Infused spheres drain after 5 days.
+            </p>
+        </div>
+    </div>
+
+    <div class="players-grid" id="players-container">
+        <!-- Player Cards populated via JS -->
+    </div>
+
+<script>
+    // Constants mapping gemstone tier to its base mark value
+    const gemValues = {
+        "Diamond": 1,
+        "Garnet": 5, "Heliodor": 5, "Topaz": 5,
+        "Ruby": 10, "Smokestone": 10, "Zircon": 10,
+        "Amethyst": 25, "Sapphire": 25,
+        "Emerald": 50
+    };
+
+    const sizeMultipliers = {
+        "Chip": 0.2, "Mark": 1, "Broam": 4
+    };
+
+    const gemColors = {
+        "Diamond": "#ffffff", "Garnet": "#800000", "Heliodor": "#ffeb3b",
+        "Topaz": "#ff9800", "Ruby": "#e6194B", "Smokestone": "#434b4d",
+        "Zircon": "#42d4f4", "Amethyst": "#911eb4", "Sapphire": "#4363d8",
+        "Emerald": "#3cb44b"
+    };
+
+    // State
+    let players = [];
+    let selectedPlayersForTime = new Set();
+
+    // ID Generator
+    const generateId = () => Math.random().toString(36).substr(2, 9);
+
+    // --- JSON IMPORT / EXPORT ---
+    function exportData() {
+        const dataStr = JSON.stringify(players, null, 2);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "roshar_spheres.json";
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                if(Array.isArray(parsed)) {
+                    players = parsed;
+                    selectedPlayersForTime.clear();
+                    players.forEach(p => selectedPlayersForTime.add(p.id));
+                    render();
+                } else {
+                    alert("Invalid save file format. Expected an array of players.");
+                }
+            } catch(err) {
+                alert("Error reading file. Ensure it is a valid JSON file.");
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = ''; // reset file input
+    }
+
+    // --- PLAYER MANAGEMENT ---
+    function addPlayer() {
+        const id = generateId();
+        players.push({ id: id, name: `Player ${players.length + 1}`, spheres: [] });
+        selectedPlayersForTime.add(id);
+        render();
+    }
+
+    function updatePlayerName(id, newName) {
+        const player = players.find(p => p.id === id);
+        if (player) player.name = newName;
+        renderTimeCheckboxes(); 
+    }
+
+    function deletePlayer(id) {
+        if(confirm("Are you sure you want to remove this player?")) {
+            players = players.filter(p => p.id !== id);
+            selectedPlayersForTime.delete(id);
+            render();
+        }
+    }
+
+    // --- SPHERE MANAGEMENT ---
+    function addSpheres(playerId) {
+        const gem = document.getElementById(`gem-${playerId}`).value;
+        const size = document.getElementById(`size-${playerId}`).value;
+        const state = document.getElementById(`state-${playerId}`).value;
+        const qty = parseInt(document.getElementById(`qty-${playerId}`).value);
+
+        if (!qty || qty < 1) return alert("Quantity must be at least 1");
+
+        const player = players.find(p => p.id === playerId);
+        const isInfused = state === "infused";
+        const daysRemaining = isInfused ? 5 : null;
+
+        let stack = player.spheres.find(s => 
+            s.gemstone === gem && s.size === size && 
+            s.isInfused === isInfused && s.daysRemaining === daysRemaining
+        );
+
+        if (stack) stack.qty += qty;
+        else {
+            player.spheres.push({
+                id: generateId(), gemstone: gem, size: size,
+                isInfused: isInfused, daysRemaining: daysRemaining, qty: qty
+            });
+        }
+        render();
+    }
+
+    function adjustSphereQty(playerId, sphereId, delta) {
+        const player = players.find(p => p.id === playerId);
+        const stack = player.spheres.find(s => s.id === sphereId);
+        
+        stack.qty += delta;
+        if (stack.qty <= 0) player.spheres = player.spheres.filter(s => s.id !== sphereId);
+        render();
+    }
+
+    function deleteSphereStack(playerId, sphereId) {
+        const player = players.find(p => p.id === playerId);
+        player.spheres = player.spheres.filter(s => s.id !== sphereId);
+        render();
+    }
+
+    // Toggle specific amount of spheres between Infused <-> Dun
+    function toggleLight(playerId, sphereId) {
+        const player = players.find(p => p.id === playerId);
+        const stack = player.spheres.find(s => s.id === sphereId);
+        const toggleInput = document.getElementById(`toggle-qty-${sphereId}`);
+        const toggleQty = parseInt(toggleInput.value);
+
+        if (isNaN(toggleQty) || toggleQty < 1 || toggleQty > stack.qty) {
+            alert("Invalid quantity. Please enter a number between 1 and " + stack.qty);
+            return;
+        }
+
+        const newIsInfused = !stack.isInfused;
+        const newDaysRemaining = newIsInfused ? 5 : null;
+
+        if (toggleQty === stack.qty) {
+            // Toggle entire stack
+            stack.isInfused = newIsInfused;
+            stack.daysRemaining = newDaysRemaining;
+        } else {
+            // Split stack
+            stack.qty -= toggleQty;
+            player.spheres.push({
+                id: generateId(),
+                gemstone: stack.gemstone,
+                size: stack.size,
+                isInfused: newIsInfused,
+                daysRemaining: newDaysRemaining,
+                qty: toggleQty
+            });
+        }
+        mergeStacks(player);
+        render();
+    }
+
+    function mergeStacks(player) {
+        const newStacks = [];
+        player.spheres.forEach(s => {
+            const existing = newStacks.find(ns => 
+                ns.gemstone === s.gemstone && ns.size === s.size && 
+                ns.isInfused === s.isInfused && ns.daysRemaining === s.daysRemaining
+            );
+            if (existing) existing.qty += s.qty;
+            else newStacks.push({...s});
+        });
+        player.spheres = newStacks;
+    }
+
+    // --- TIME ADVANCEMENT ---
+    function advanceTime() {
+        const days = parseInt(document.getElementById('daysToAdvance').value);
+        if (!days || days < 1) return alert("Please enter a valid number of days.");
+        if (selectedPlayersForTime.size === 0) return alert("Select at least one player to advance time for.");
+
+        players.forEach(player => {
+            if (selectedPlayersForTime.has(player.id)) {
+                player.spheres.forEach(stack => {
+                    if (stack.isInfused) {
+                        stack.daysRemaining -= days;
+                        if (stack.daysRemaining <= 0) {
+                            stack.isInfused = false;
+                            stack.daysRemaining = null;
+                        }
+                    }
+                });
+                mergeStacks(player);
+            }
+        });
+        render();
+    }
+
+    function toggleTimePlayer(id, isChecked) {
+        if (isChecked) selectedPlayersForTime.add(id);
+        else selectedPlayersForTime.delete(id);
+    }
+
+    function toggleAllTimePlayers(isChecked) {
+        if (isChecked) players.forEach(p => selectedPlayersForTime.add(p.id));
+        else selectedPlayersForTime.clear();
+        renderTimeCheckboxes();
+    }
+
+    // --- RENDERING ---
+    function calculateTotalWealth(spheres) {
+        let total = 0;
+        spheres.forEach(s => {
+            const unitValue = gemValues[s.gemstone] * sizeMultipliers[s.size];
+            total += unitValue * s.qty;
+        });
+        return parseFloat(total.toFixed(2));
+    }
+
+    function renderTimeCheckboxes() {
+        const container = document.getElementById('time-checkboxes');
+        if (players.length === 0) {
+            container.innerHTML = "<p style='color:var(--text-muted); margin:0;'>No players added yet.</p>";
+            return;
+        }
+
+        const allChecked = players.every(p => selectedPlayersForTime.has(p.id));
+        let html = `
+            <label>
+                <input type="checkbox" onchange="toggleAllTimePlayers(this.checked)" ${allChecked ? 'checked' : ''}>
+                <strong>Select All Players</strong>
+            </label>
+        `;
+        players.forEach(p => {
+            const isChecked = selectedPlayersForTime.has(p.id) ? 'checked' : '';
+            html += `
+                <label>
+                    <input type="checkbox" value="${p.id}" onchange="toggleTimePlayer('${p.id}', this.checked)" ${isChecked}>
+                    ${p.name}
+                </label>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    function renderPlayers() {
+        const container = document.getElementById('players-container');
+        container.innerHTML = '';
+
+        players.forEach(player => {
+            const totalWealth = calculateTotalWealth(player.spheres);
+            let html = `
+                <div class="player-card">
+                    <div class="player-header">
+                        <input type="text" class="player-name" value="${player.name}" onblur="updatePlayerName('${player.id}', this.value)">
+                        <div class="total-wealth">${totalWealth} mk</div>
+                        <button class="danger" title="Delete Player" onclick="deletePlayer('${player.id}')">X</button>
+                    </div>
+
+                    <div class="add-sphere-form">
+                        <input type="number" id="qty-${player.id}" value="1" min="1" placeholder="Qty">
+                        <select id="gem-${player.id}">
+                            ${Object.keys(gemValues).map(g => `<option value="${g}">${g}</option>`).join('')}
+                        </select>
+                        <select id="size-${player.id}">
+                            ${Object.keys(sizeMultipliers).map(s => `<option value="${s}">${s}</option>`).join('')}
+                        </select>
+                        <select id="state-${player.id}">
+                            <option value="infused">Infused</option>
+                            <option value="dun">Dun</option>
+                        </select>
+                        <button style="grid-column: span 2;" onclick="addSpheres('${player.id}')">+ Add Spheres</button>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Sphere</th>
+                                <th>Qty</th>
+                                <th>Status</th>
+                                <th>Toggle Light</th>
+                                <th>Value</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            if (player.spheres.length === 0) {
+                html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:10px;">No spheres in inventory</td></tr>`;
+            } else {
+                player.spheres.sort((a,b) => a.gemstone.localeCompare(b.gemstone)).forEach(s => {
+                    const color = gemColors[s.gemstone];
+                    const glowClass = s.isInfused ? 'infused' : 'dun';
+                    const statusText = s.isInfused ? `Infused (${s.daysRemaining}d)` : 'Dun';
+                    const unitVal = gemValues[s.gemstone] * sizeMultipliers[s.size];
+                    const stackVal = parseFloat((unitVal * s.qty).toFixed(2));
+                    
+                    // The toggle button will say "Infuse" if it is currently Dun, and "Drain" if Infused.
+                    const actionLabel = s.isInfused ? "Drain" : "Infuse";
+
+                    html += `
+                        <tr>
+                            <td>
+                                <span class="gem-dot ${glowClass}" style="background-color: ${color};"></span>
+                                ${s.gemstone} ${s.size}
+                            </td>
+                            <td>
+                                <div class="qty-controls">
+                                    <button class="small" onclick="adjustSphereQty('${player.id}', '${s.id}', -1)">-</button>
+                                    ${s.qty}
+                                    <button class="small" onclick="adjustSphereQty('${player.id}', '${s.id}', 1)">+</button>
+                                </div>
+                            </td>
+                            <td style="color: ${s.isInfused ? '#4a90e2' : 'var(--text-muted)'}">${statusText}</td>
+                            <td>
+                                <div class="toggle-controls">
+                                    <input type="number" id="toggle-qty-${s.id}" value="${s.qty}" min="1" max="${s.qty}" style="width: 40px; padding: 4px;">
+                                    <button class="small" onclick="toggleLight('${player.id}', '${s.id}')">${actionLabel}</button>
+                                </div>
+                            </td>
+                            <td>${stackVal} mk</td>
+                            <td><button class="danger small" onclick="deleteSphereStack('${player.id}', '${s.id}')">X</button></td>
+                        </tr>
+                    `;
+                });
+            }
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            container.innerHTML += html;
+        });
+    }
+
+    function render() {
+        renderTimeCheckboxes();
+        renderPlayers();
+    }
+
+    // Initialize
+    window.onload = () => {
+        addPlayer();
+    };
+</script>
+</body>
+</html>
