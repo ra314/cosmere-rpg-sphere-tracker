@@ -1,6 +1,8 @@
 # cosmere-rpg-sphere-tracker
 A web app to track your stormlight and wealth in the Cosmere RPG. Vibe-coded.
 
+https://ra314.github.io/cosmere-rpg-sphere-tracker/
+
 ## Features
 
 *   **Player Management:**
